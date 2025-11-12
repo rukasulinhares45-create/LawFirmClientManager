@@ -1,12 +1,14 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Cliente } from "@shared/schema";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Edit, Mail, Phone, MapPin, Calendar, Briefcase } from "lucide-react";
+import { Edit, Mail, Phone, MapPin, Calendar, Briefcase, FileText, Download } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { ClienteFormDialog } from "./cliente-form-dialog";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface ClienteDetailDialogProps {
   cliente: Cliente;
@@ -16,6 +18,15 @@ interface ClienteDetailDialogProps {
 
 export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDetailDialogProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
+
+  // Buscar documentos vinculados ao cliente
+  const { data: todosDocumentos } = useQuery<any[]>({
+    queryKey: ["/api/documentos"],
+  });
+
+  const documentosVinculados = todosDocumentos?.filter(
+    (doc) => doc.clienteId === cliente.id
+  ) || [];
 
   const formatCpfCnpj = (value: string) => {
     if (value.length === 11) {
@@ -202,12 +213,65 @@ export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDeta
               </div>
             </TabsContent>
 
-            <TabsContent value="documentos">
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Documentos vinculados a este cliente aparecerão aqui
-                </p>
-              </div>
+            <TabsContent value="documentos" className="space-y-4">
+              {documentosVinculados.length > 0 ? (
+                <div className="space-y-3">
+                  {documentosVinculados.map((doc) => (
+                    <Card key={doc.id} data-testid={`documento-${doc.id}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-3 flex-1">
+                            <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-sm">{doc.nome}</h4>
+                              {doc.descricao && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {doc.descricao}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                <Badge variant={
+                                  doc.status === "em_uso" ? "default" :
+                                  doc.status === "em_analise" ? "secondary" :
+                                  doc.status === "devolvido" ? "outline" :
+                                  "secondary"
+                                }>
+                                  {doc.status === "em_uso" ? "Em Uso" :
+                                   doc.status === "em_analise" ? "Em Análise" :
+                                   doc.status === "devolvido" ? "Devolvido" :
+                                   "Arquivado"}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  {doc.tipoArquivo.toUpperCase()}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(doc.uploadEm).toLocaleDateString("pt-BR")}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(`/uploads/${doc.nomeArquivo}`, '_blank')}
+                            data-testid={`button-download-${doc.id}`}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <FileText className="h-12 w-12 text-muted-foreground/50" />
+                  <h3 className="mt-4 text-lg font-medium">Nenhum documento vinculado</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Este cliente ainda não possui documentos vinculados
+                  </p>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </DialogContent>
