@@ -7,7 +7,6 @@ import path from "path";
 import fs from "fs";
 import { z } from "zod";
 import { insertClienteSchema, insertDocumentoJuridicoSchema } from "@shared/schema";
-import csurf from "csurf";
 import passport from "passport";
 
 // Setup file upload
@@ -64,9 +63,6 @@ async function createAuditLog(
 export function registerRoutes(app: Express): Server {
   // Setup authentication (session and passport only)
   setupAuth(app);
-
-  // Setup CSRF protection (session-based)
-  const csrfProtection = csurf({ cookie: false });
 
   // Auth routes
   app.post("/api/login", passport.authenticate("local", { failureMessage: true }), async (req: Request, res: Response, next: NextFunction) => {
