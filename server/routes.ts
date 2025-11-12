@@ -68,12 +68,7 @@ export function registerRoutes(app: Express): Server {
   // Setup CSRF protection (session-based)
   const csrfProtection = csurf({ cookie: false });
 
-  // CSRF token endpoint (no CSRF needed to get the token)
-  app.get("/api/csrf-token", requireAuth, csrfProtection, (req: Request, res: Response) => {
-    res.json({ csrfToken: req.csrfToken() });
-  });
-
-  // Auth routes (login doesn't need CSRF since it's the entry point)
+  // Auth routes
   app.post("/api/login", passport.authenticate("local", { failureMessage: true }), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = req.user!;
@@ -162,8 +157,7 @@ export function registerRoutes(app: Express): Server {
       '/api/login',
       '/api/logout',
       '/api/user',
-      '/api/change-password',
-      '/api/csrf-token'
+      '/api/change-password'
     ];
 
     if (allowedPaths.includes(req.path)) {
@@ -171,20 +165,6 @@ export function registerRoutes(app: Express): Server {
     }
 
     requirePasswordChange(req, res, next);
-  });
-
-  // Apply CSRF protection to all mutating routes (after password change check)
-  app.use("/api/*", (req, res, next) => {
-    // Skip CSRF for GET requests and auth endpoints
-    if (req.method === 'GET' || 
-        req.path === '/api/login' || 
-        req.path === '/api/logout' ||
-        req.path === '/api/change-password' ||
-        req.path === '/api/csrf-token') {
-      return next();
-    }
-
-    csrfProtection(req, res, next);
   });
 
   // Dashboard routes
