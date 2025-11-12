@@ -165,12 +165,28 @@ export const insertUserSchema = createInsertSchema(users).pick({
   role: true,
 });
 
-export const insertClienteSchema = createInsertSchema(clientes).omit({
-  id: true,
-  criadoPorId: true,
-  criadoEm: true,
-  atualizadoEm: true,
-});
+const clienteSchema = createInsertSchema(clientes)
+  .omit({
+    id: true,
+    criadoPorId: true,
+    criadoEm: true,
+    atualizadoEm: true,
+  })
+  .extend({
+    nome: z.string().min(1, "Nome é obrigatório"),
+    cpfCnpj: z.string().min(11, "CPF/CNPJ é obrigatório"),
+    celular: z.string().min(1, "Celular é obrigatório"),
+  });
+
+export const insertClienteSchema = clienteSchema.refine(
+  (data) => data.tipo !== "pf" || !!data.dataNascimento,
+  {
+    message: "Data de nascimento é obrigatória para pessoa física",
+    path: ["dataNascimento"],
+  }
+);
+
+export const updateClienteSchema = clienteSchema.partial();
 
 export const insertDocumentoSchema = createInsertSchema(documentos).omit({
   id: true,

@@ -7,26 +7,32 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, X, FileText } from "lucide-react";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Cliente } from "@shared/schema";
+import { User } from "@shared/schema";
 
-interface DocumentoUploadDialogProps {
+interface DocumentoUploadDialogClienteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  clienteId: string;
+  clienteNome: string;
 }
 
-export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDialogProps) {
+export function DocumentoUploadDialogCliente({ 
+  open, 
+  onOpenChange, 
+  clienteId,
+  clienteNome 
+}: DocumentoUploadDialogClienteProps) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
-  const [clienteId, setClienteId] = useState("");
   const [status, setStatus] = useState("em_analise");
   const [isDragging, setIsDragging] = useState(false);
 
-  const { data: clientes } = useQuery<Cliente[]>({
-    queryKey: ["/api/clientes"],
+  const { data: currentUser } = useQuery<User>({
+    queryKey: ["/api/user"],
     enabled: open,
   });
 
@@ -65,7 +71,6 @@ export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDia
     setFile(null);
     setNome("");
     setDescricao("");
-    setClienteId("");
     setStatus("em_analise");
   };
 
@@ -104,7 +109,7 @@ export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDia
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!file || !nome || !clienteId) {
+    if (!file || !nome || !currentUser) {
       toast({
         title: "Campos obrigatórios",
         description: "Preencha todos os campos obrigatórios",
@@ -127,7 +132,7 @@ export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDia
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Upload de Documento</DialogTitle>
+          <DialogTitle>Upload de Documento - {clienteNome}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -175,10 +180,10 @@ export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDia
                   accept=".pdf,.jpg,.jpeg,.png"
                   onChange={handleFileSelect}
                   className="hidden"
-                  id="file-upload"
+                  id="file-upload-cliente"
                   data-testid="input-file"
                 />
-                <Label htmlFor="file-upload">
+                <Label htmlFor="file-upload-cliente">
                   <Button type="button" variant="outline" asChild>
                     <span>Selecionar Arquivo</span>
                   </Button>
@@ -187,34 +192,16 @@ export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDia
             )}
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="nome">Nome do Documento *</Label>
-              <Input
-                id="nome"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Ex: Contrato de Prestação de Serviços"
-                required
-                data-testid="input-nome-documento"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cliente">Cliente *</Label>
-              <Select value={clienteId} onValueChange={setClienteId} required>
-                <SelectTrigger id="cliente" data-testid="select-cliente">
-                  <SelectValue placeholder="Selecione o cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientes?.map((cliente) => (
-                    <SelectItem key={cliente.id} value={cliente.id}>
-                      {cliente.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="nome">Nome do Documento *</Label>
+            <Input
+              id="nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Ex: Contrato de Prestação de Serviços"
+              required
+              data-testid="input-nome-documento"
+            />
           </div>
 
           <div className="space-y-2">

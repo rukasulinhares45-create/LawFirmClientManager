@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Cliente } from "@shared/schema";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Edit, Mail, Phone, MapPin, Calendar, Briefcase, FileText, Download } from "lucide-react";
+import { Edit, Mail, Phone, MapPin, Calendar, Briefcase, FileText, Download, Upload } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { ClienteFormDialog } from "./cliente-form-dialog";
 import { Card, CardContent } from "@/components/ui/card";
+import { DocumentoUploadDialogCliente } from "./documento-upload-dialog-cliente";
 
 interface ClienteDetailDialogProps {
   cliente: Cliente;
@@ -18,6 +19,7 @@ interface ClienteDetailDialogProps {
 
 export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDetailDialogProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   // Buscar documentos vinculados ao cliente
   const { data: todosDocumentos } = useQuery<any[]>({
@@ -214,6 +216,16 @@ export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDeta
             </TabsContent>
 
             <TabsContent value="documentos" className="space-y-4">
+              <div className="flex justify-end mb-4">
+                <Button
+                  onClick={() => setShowUploadDialog(true)}
+                  data-testid="button-upload-documento-cliente"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Adicionar Documento
+                </Button>
+              </div>
+
               {documentosVinculados.length > 0 ? (
                 <div className="space-y-3">
                   {documentosVinculados.map((doc) => (
@@ -282,6 +294,15 @@ export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDeta
           open={showEditDialog}
           onOpenChange={setShowEditDialog}
           cliente={cliente}
+        />
+      )}
+
+      {showUploadDialog && (
+        <DocumentoUploadDialogCliente
+          open={showUploadDialog}
+          onOpenChange={setShowUploadDialog}
+          clienteId={cliente.id}
+          clienteNome={cliente.nome}
         />
       )}
     </>

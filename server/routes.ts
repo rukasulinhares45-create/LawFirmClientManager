@@ -6,8 +6,10 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { z } from "zod";
-import { insertClienteSchema, insertDocumentoJuridicoSchema } from "@shared/schema";
+import { insertClienteSchema, updateClienteSchema, insertDocumentoJuridicoSchema } from "@shared/schema";
 import passport from "passport";
+import { buscarCEP } from "./services/viacep";
+import { buscarEstados, buscarMunicipios } from "./services/ibge";
 
 // Setup file upload
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -222,7 +224,7 @@ export function registerRoutes(app: Express): Server {
   app.patch("/api/clientes/:id", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Validate partial input
-      const validatedData = insertClienteSchema.partial().parse(req.body);
+      const validatedData = updateClienteSchema.parse(req.body);
       const cliente = await storage.updateCliente(req.params.id, validatedData);
       await createAuditLog(req, "editar_cliente", "cliente", cliente.id, `Cliente editado: ${cliente.nome}`);
       res.json(cliente);
@@ -244,6 +246,51 @@ export function registerRoutes(app: Express): Server {
       await createAuditLog(req, "excluir_cliente", "cliente", req.params.id, `Cliente excluído: ${cliente.nome}`);
       res.sendStatus(204);
     } catch (error) {
+      next(error);
+    }
+  });
+
+  // CEP e IBGE routes
+  app.get("/api/cep/:cep", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const cepSchema = z.string().regex(/^\d{5}-?\d{3}$/, "CEP inválido");
+      const cep = cepSchema.parse(req.params.cep);
+      
+      const endereco = await buscarCEP(cep);
+      
+      if (!endereco) {
+        return res.status(404).send("CEP não encontrado");
+      }
+      
+      res.json(endereco);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).send(error.errors[0].message);
+      }
+      next(error);
+    }
+  });
+
+  app.get("/api/ibge/estados", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const estados = await buscarEstados();
+      res.json(estados);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/ibge/municipios/:uf", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const ufSchema = z.string().length(2, "UF deve ter 2 caracteres");
+      const uf = ufSchema.parse(req.params.uf);
+      
+      const municipios = await buscarMunicipios(uf);
+      res.json(municipios);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).send(error.errors[0].message);
+      }
       next(error);
     }
   });

@@ -13,12 +13,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { CPFCNPJMask, PhoneMask, CEPMask, stripNonDigits } from "@/components/masked-input";
 
-const clienteFormSchema = insertClienteSchema.extend({
-  tipo: z.enum(["pf", "pj"]),
-  nome: z.string().min(1, "Nome é obrigatório"),
-  cpfCnpj: z.string().min(11, "CPF/CNPJ é obrigatório"),
-});
+const clienteFormSchema = insertClienteSchema;
 
 type ClienteFormData = z.infer<typeof clienteFormSchema>;
 
@@ -34,7 +31,24 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
 
   const form = useForm<ClienteFormData>({
     resolver: zodResolver(clienteFormSchema),
-    defaultValues: cliente || {
+    defaultValues: cliente ? {
+      ...cliente,
+      celular: cliente.celular || "",
+      rgInscricaoEstadual: cliente.rgInscricaoEstadual || "",
+      dataNascimento: cliente.dataNascimento || "",
+      localNascimento: cliente.localNascimento || "",
+      cep: cliente.cep || "",
+      endereco: cliente.endereco || "",
+      numero: cliente.numero || "",
+      complemento: cliente.complemento || "",
+      bairro: cliente.bairro || "",
+      cidade: cliente.cidade || "",
+      estado: cliente.estado || "",
+      telefone: cliente.telefone || "",
+      email: cliente.email || "",
+      ocupacao: cliente.ocupacao || "",
+      observacoes: cliente.observacoes || "",
+    } : {
       tipo: "pf",
       nome: "",
       cpfCnpj: "",
@@ -103,10 +117,18 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
   });
 
   const onSubmit = (data: ClienteFormData) => {
+    const cleanedData = {
+      ...data,
+      cpfCnpj: stripNonDigits(data.cpfCnpj),
+      telefone: data.telefone ? stripNonDigits(data.telefone) : "",
+      celular: stripNonDigits(data.celular),
+      cep: data.cep ? stripNonDigits(data.cep) : "",
+    };
+    
     if (isEditing) {
-      updateMutation.mutate(data);
+      updateMutation.mutate(cleanedData);
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(cleanedData);
     }
   };
 
@@ -188,7 +210,7 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
                       <FormItem>
                         <FormLabel>{tipo === "pf" ? "CPF" : "CNPJ"} *</FormLabel>
                         <FormControl>
-                          <Input
+                          <CPFCNPJMask
                             {...field}
                             placeholder={tipo === "pf" ? "000.000.000-00" : "00.000.000/0000-00"}
                             data-testid="input-cpf-cnpj"
@@ -222,7 +244,7 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
                         name="dataNascimento"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Data de Nascimento</FormLabel>
+                            <FormLabel>Data de Nascimento *</FormLabel>
                             <FormControl>
                               <Input
                                 {...field}
@@ -263,7 +285,7 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
                       <FormItem>
                         <FormLabel>Telefone</FormLabel>
                         <FormControl>
-                          <Input
+                          <PhoneMask
                             {...field}
                             value={field.value || ""}
                             placeholder="(00) 0000-0000"
@@ -280,9 +302,9 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
                     name="celular"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Celular</FormLabel>
+                        <FormLabel>Celular *</FormLabel>
                         <FormControl>
-                          <Input
+                          <PhoneMask
                             {...field}
                             value={field.value || ""}
                             placeholder="(00) 00000-0000"
@@ -324,7 +346,7 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
                       <FormItem>
                         <FormLabel>CEP</FormLabel>
                         <FormControl>
-                          <Input
+                          <CEPMask
                             {...field}
                             value={field.value || ""}
                             placeholder="00000-000"
