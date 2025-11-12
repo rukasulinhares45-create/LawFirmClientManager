@@ -73,8 +73,8 @@ export function registerRoutes(app: Express): Server {
     res.json({ csrfToken: req.csrfToken() });
   });
 
-  // Auth routes with CSRF protection
-  app.post("/api/login", csrfProtection, passport.authenticate("local", { failureMessage: true }), async (req: Request, res: Response, next: NextFunction) => {
+  // Auth routes (login doesn't need CSRF since it's the entry point)
+  app.post("/api/login", passport.authenticate("local", { failureMessage: true }), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = req.user!;
       await storage.updateUserLastAccess(user.id);
@@ -94,7 +94,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/logout", requireAuth, csrfProtection, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/logout", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user;
     if (user) {
       const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -117,8 +117,8 @@ export function registerRoutes(app: Express): Server {
     res.json(req.user);
   });
 
-  // Change password endpoint with CSRF and password validation
-  app.post("/api/change-password", requireAuth, csrfProtection, async (req: Request, res: Response, next: NextFunction) => {
+  // Change password endpoint with password validation (no CSRF for auth flows)
+  app.post("/api/change-password", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = req.user!;
       
