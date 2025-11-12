@@ -1,0 +1,132 @@
+Build a complete application for managing clients of a law firm, with a web (desktop) version and responsive support for mobile devices.
+
+⚠️ Important: The entire application interface, labels, and messages must be in Brazilian Portuguese (pt-BR).
+
+🔐 Access and Security Requirements
+
+Access to the system must be through login and password.
+
+Credentials (username and temporary password) will be pre-created by the administrator.
+
+On the first login, the user must be required to change the password.
+
+Implement best security practices, including:
+
+Password encryption (e.g., bcrypt)
+
+Authenticated sessions (JWT or secure cookies)
+
+Protection against SQL Injection, XSS, and CSRF
+
+Activity logs (who accessed, when, and what was changed)
+
+👥 User Roles
+
+Administrator (Admin):
+
+Creates, edits, and deactivates users.
+
+Defines permissions and manages system-wide configurations.
+
+Regular User:
+
+Accesses, views, and manages information as allowed by their permissions.
+
+Can register clients, upload documents, and create legal forms.
+
+🧾 Client Management
+
+The system must allow registering and managing clients of the law firm, which can be:
+
+Individual (Pessoa Física)
+
+Company (Pessoa Jurídica)
+
+Each client record must include:
+
+Full name / Company name
+
+CPF / CNPJ
+
+RG / State registration (optional)
+
+Date and place of birth
+
+Full address
+
+Phone number(s) and email(s)
+
+Occupation or business field
+
+General notes
+
+Client records must be editable and searchable by name, document number, or internal ID.
+
+📂 Client Documents
+
+The system must support uploading and managing documents linked to a registered client.
+
+Requirements:
+
+Upload PDF or image files (JPG, PNG).
+
+Each document must include:
+
+Name and description
+
+Linked client
+
+Status (e.g., “in review,” “in use,” “returned to client,” etc.)
+
+Timestamp when the status was updated
+
+The system must allow filtering documents by status, date, or client.
+
+Each upload must record who uploaded it and when.
+
+📝 Integrated Document Editor
+
+The application must include an integrated text editor to create and edit legal documents (e.g., powers of attorney, declarations, etc.), with the following capabilities:
+
+Automatically insert client data from registered clients (e.g., name, CPF, address).
+
+Basic text formatting (bold, italic, alignment, tables, etc.).
+
+Ability to save the document as PDF or print directly.
+
+Version history (optional).
+
+🗄️ General Features
+
+Dashboard showing summaries (e.g., number of clients, active documents, returned documents, etc.).
+
+Global search bar.
+
+Audit logs of actions (logins, edits, document uploads).
+
+Modern, clean, and intuitive interface (preferably built with React, Vue, or Angular).
+
+Secure and well-structured backend (Node.js, Python/Django, or Laravel — as the model suggests).
+
+Relational database (PostgreSQL or MySQL).
+
+📱 Compatibility
+
+Responsive design, optimized for computers, tablets, and smartphones.
+
+Future-ready for mobile deployment (as a PWA, React Native, or Flutter app).
+
+⚙️ Additional Features (Optional but Recommended)
+
+Export reports in PDF (clients, documents, activities).
+
+Automatic data backups.
+
+Support for multiple administrators.
+
+Full audit trail (who changed what and when).
+
+💡 Goal:
+Develop a professional, secure, and modern application for managing clients and documents in a law firm, with user access control, an integrated legal document editor, and organized document storage.
+
+🔤 All user interface elements, field names, and system messages must be displayed in Brazilian Portuguese (pt-BR).
