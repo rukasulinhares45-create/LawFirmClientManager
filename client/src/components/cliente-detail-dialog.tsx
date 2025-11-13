@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Cliente, StatusDocumento } from "@shared/schema";
+import { Cliente, StatusDocumento, Documento } from "@shared/schema";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Edit, Mail, Phone, MapPin, Calendar, Briefcase, FileText, Download, Upload } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -24,16 +24,16 @@ interface ClienteDetailDialogProps {
 export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDetailDialogProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [documentoToEdit, setDocumentoToEdit] = useState<any | null>(null);
+  const [documentoToEdit, setDocumentoToEdit] = useState<Documento | null>(null);
   const [newStatusId, setNewStatusId] = useState<string>("");
   const { toast } = useToast();
 
   // Buscar documentos vinculados ao cliente
-  const { data: todosDocumentos } = useQuery<any[]>({
+  const { data: todosDocumentos } = useQuery<Documento[]>({
     queryKey: ["/api/documentos"],
   });
 
-  const { data: statusList } = useQuery<StatusDocumento[]>({
+  const { data: statusList, isLoading: isLoadingStatus } = useQuery<StatusDocumento[]>({
     queryKey: ["/api/status-documentos"],
   });
 
@@ -357,41 +357,51 @@ export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDeta
             <DialogTitle>Editar Status do Documento</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-status">Novo Status</Label>
-              <Select value={newStatusId} onValueChange={setNewStatusId}>
-                <SelectTrigger id="edit-status" data-testid="select-edit-status">
-                  <SelectValue placeholder="Selecione o status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusList?.filter(s => s.ativo).map((statusItem) => (
-                    <SelectItem key={statusItem.id} value={statusItem.id}>
-                      {statusItem.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setDocumentoToEdit(null);
-                  setNewStatusId("");
-                }}
-                disabled={updateStatusMutation.isPending}
-                data-testid="button-cancel-edit-status"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={() => documentoToEdit && updateStatusMutation.mutate({ id: documentoToEdit.id, statusId: newStatusId })}
-                disabled={updateStatusMutation.isPending || !newStatusId}
-                data-testid="button-confirm-edit-status"
-              >
-                {updateStatusMutation.isPending ? "Salvando..." : "Salvar"}
-              </Button>
-            </div>
+            {isLoadingStatus ? (
+              <div className="text-sm text-muted-foreground">Carregando status...</div>
+            ) : !statusList || statusList.filter(s => s.ativo).length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                Nenhum status disponível. Por favor, cadastre status na área de Configurações.
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-status">Novo Status</Label>
+                  <Select value={newStatusId} onValueChange={setNewStatusId}>
+                    <SelectTrigger id="edit-status" data-testid="select-edit-status">
+                      <SelectValue placeholder="Selecione o status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusList.filter(s => s.ativo).map((statusItem) => (
+                        <SelectItem key={statusItem.id} value={statusItem.id}>
+                          {statusItem.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setDocumentoToEdit(null);
+                      setNewStatusId("");
+                    }}
+                    disabled={updateStatusMutation.isPending}
+                    data-testid="button-cancel-edit-status"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={() => documentoToEdit && updateStatusMutation.mutate({ id: documentoToEdit.id, statusId: newStatusId })}
+                    disabled={updateStatusMutation.isPending || !newStatusId}
+                    data-testid="button-confirm-edit-status"
+                  >
+                    {updateStatusMutation.isPending ? "Salvando..." : "Salvar"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
