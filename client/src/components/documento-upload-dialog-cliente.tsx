@@ -123,7 +123,7 @@ export function DocumentoUploadDialogCliente({
     formData.append("nome", nome);
     formData.append("descricao", descricao);
     formData.append("clienteId", clienteId);
-    formData.append("status", status);
+    formData.append("statusId", status);
 
     uploadMutation.mutate(formData);
   };

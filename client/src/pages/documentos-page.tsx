@@ -3,12 +3,12 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Filter, FileText, Download, Trash2, Upload } from "lucide-react";
+import { Plus, Search, Filter, FileText, Download, Trash2, Upload, Edit } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Documento } from "@shared/schema";
+import { Documento, StatusDocumento } from "@shared/schema";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -16,30 +16,24 @@ import { DocumentoUploadDialog } from "@/components/documento-upload-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
 
-const statusLabels: Record<string, string> = {
-  em_analise: "Em Análise",
-  em_uso: "Em Uso",
-  devolvido: "Devolvido ao Cliente",
-  arquivado: "Arquivado",
-};
-
-const statusColors: Record<string, "default" | "secondary" | "outline"> = {
-  em_analise: "secondary",
-  em_uso: "default",
-  devolvido: "outline",
-  arquivado: "outline",
-};
 
 export default function DocumentosPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [documentoToDelete, setDocumentoToDelete] = useState<Documento | null>(null);
+  const [documentoToEdit, setDocumentoToEdit] = useState<Documento | null>(null);
+  const [newStatusId, setNewStatusId] = useState<string>("");
   const { toast } = useToast();
 
   const { data: documentos, isLoading } = useQuery<Documento[]>({
     queryKey: ["/api/documentos"],
+  });
+
+  const { data: statusList } = useQuery<StatusDocumento[]>({
+    queryKey: ["/api/status-documentos"],
   });
 
   const deleteMutation = useMutation({
@@ -64,15 +58,44 @@ export default function DocumentosPage() {
     },
   });
 
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, statusId }: { id: string; statusId: string }) => {
+      await apiRequest("PATCH", `/api/documentos/${id}`, { statusId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documentos"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: "Status atualizado",
+        description: "Status do documento atualizado com sucesso",
+      });
+      setDocumentoToEdit(null);
+      setNewStatusId("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atualizar status",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const filteredDocumentos = documentos?.filter((doc) => {
     const matchesSearch =
       doc.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doc.descricao?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesStatus = statusFilter === "all" || doc.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || doc.statusId === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
+
+  const getStatusNome = (statusId: string | null) => {
+    if (!statusId) return "Sem Status";
+    const status = statusList?.find(s => s.id === statusId);
+    return status?.nome || "Status Desconhecido";
+  };
 
   const getFileIcon = (tipo: string) => {
     return <FileText className="h-8 w-8" />;
@@ -113,10 +136,11 @@ export default function DocumentosPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
-                  <SelectItem value="em_analise">Em Análise</SelectItem>
-                  <SelectItem value="em_uso">Em Uso</SelectItem>
-                  <SelectItem value="devolvido">Devolvido</SelectItem>
-                  <SelectItem value="arquivado">Arquivado</SelectItem>
+                  {statusList?.filter(s => s.ativo).map((status) => (
+                    <SelectItem key={status.id} value={status.id}>
+                      {status.nome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -146,8 +170,8 @@ export default function DocumentosPage() {
                             </p>
                           </div>
                         </div>
-                        <Badge variant={statusColors[doc.status]}>
-                          {statusLabels[doc.status]}
+                        <Badge variant="secondary">
+                          {getStatusNome(doc.statusId)}
                         </Badge>
                       </div>
 
@@ -176,6 +200,17 @@ export default function DocumentosPage() {
                         >
                           <Download className="mr-2 h-4 w-4" />
                           Download
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            setDocumentoToEdit(doc);
+                            setNewStatusId(doc.statusId || "");
+                          }}
+                          data-testid={`button-edit-status-${doc.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="outline"
@@ -241,6 +276,51 @@ export default function DocumentosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!documentoToEdit} onOpenChange={(open) => !open && setDocumentoToEdit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Status do Documento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-status">Novo Status</Label>
+              <Select value={newStatusId} onValueChange={setNewStatusId}>
+                <SelectTrigger id="edit-status" data-testid="select-edit-status">
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusList?.filter(s => s.ativo).map((statusItem) => (
+                    <SelectItem key={statusItem.id} value={statusItem.id}>
+                      {statusItem.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDocumentoToEdit(null);
+                  setNewStatusId("");
+                }}
+                disabled={updateStatusMutation.isPending}
+                data-testid="button-cancel-edit-status"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => documentoToEdit && updateStatusMutation.mutate({ id: documentoToEdit.id, statusId: newStatusId })}
+                disabled={updateStatusMutation.isPending || !newStatusId}
+                data-testid="button-confirm-edit-status"
+              >
+                {updateStatusMutation.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
