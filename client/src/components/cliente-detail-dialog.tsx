@@ -24,15 +24,51 @@ interface ClienteDetailDialogProps {
 export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDetailDialogProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [documentoToEdit, setDocumentoToEdit] = useState<any | null>(null);
+  const [newStatusId, setNewStatusId] = useState<string>("");
+  const { toast } = useToast();
 
   // Buscar documentos vinculados ao cliente
   const { data: todosDocumentos } = useQuery<any[]>({
     queryKey: ["/api/documentos"],
   });
 
+  const { data: statusList } = useQuery<StatusDocumento[]>({
+    queryKey: ["/api/status-documentos"],
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, statusId }: { id: string; statusId: string }) => {
+      await apiRequest("PATCH", `/api/documentos/${id}`, { statusId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documentos"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: "Status atualizado",
+        description: "Status do documento atualizado com sucesso",
+      });
+      setDocumentoToEdit(null);
+      setNewStatusId("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atualizar status",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const documentosVinculados = todosDocumentos?.filter(
     (doc) => doc.clienteId === cliente.id
   ) || [];
+
+  const getStatusNome = (statusId: string | null) => {
+    if (!statusId) return "Sem Status";
+    const status = statusList?.find(s => s.id === statusId);
+    return status?.nome || "Status Desconhecido";
+  };
 
   const formatCpfCnpj = (value: string) => {
     if (value.length === 11) {
@@ -246,16 +282,8 @@ export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDeta
                                 </p>
                               )}
                               <div className="flex flex-wrap items-center gap-2 mt-2">
-                                <Badge variant={
-                                  doc.status === "em_uso" ? "default" :
-                                  doc.status === "em_analise" ? "secondary" :
-                                  doc.status === "devolvido" ? "outline" :
-                                  "secondary"
-                                }>
-                                  {doc.status === "em_uso" ? "Em Uso" :
-                                   doc.status === "em_analise" ? "Em Análise" :
-                                   doc.status === "devolvido" ? "Devolvido" :
-                                   "Arquivado"}
+                                <Badge variant="secondary">
+                                  {getStatusNome(doc.statusId)}
                                 </Badge>
                                 <span className="text-xs text-muted-foreground">
                                   {doc.tipoArquivo.toUpperCase()}
@@ -266,14 +294,27 @@ export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDeta
                               </div>
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => window.open(`/uploads/${doc.nomeArquivo}`, '_blank')}
-                            data-testid={`button-download-${doc.id}`}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => window.open(`/uploads/${doc.nomeArquivo}`, '_blank')}
+                              data-testid={`button-download-${doc.id}`}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setDocumentoToEdit(doc);
+                                setNewStatusId(doc.statusId || "");
+                              }}
+                              data-testid={`button-edit-status-${doc.id}`}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -309,6 +350,51 @@ export function ClienteDetailDialog({ cliente, open, onOpenChange }: ClienteDeta
           clienteNome={cliente.nome}
         />
       )}
+
+      <Dialog open={!!documentoToEdit} onOpenChange={(open) => !open && setDocumentoToEdit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Status do Documento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-status">Novo Status</Label>
+              <Select value={newStatusId} onValueChange={setNewStatusId}>
+                <SelectTrigger id="edit-status" data-testid="select-edit-status">
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusList?.filter(s => s.ativo).map((statusItem) => (
+                    <SelectItem key={statusItem.id} value={statusItem.id}>
+                      {statusItem.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDocumentoToEdit(null);
+                  setNewStatusId("");
+                }}
+                disabled={updateStatusMutation.isPending}
+                data-testid="button-cancel-edit-status"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => documentoToEdit && updateStatusMutation.mutate({ id: documentoToEdit.id, statusId: newStatusId })}
+                disabled={updateStatusMutation.isPending || !newStatusId}
+                data-testid="button-confirm-edit-status"
+              >
+                {updateStatusMutation.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
