@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, X, FileText } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Cliente } from "@shared/schema";
+import { Cliente, StatusDocumento } from "@shared/schema";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface DocumentoUploadDialogProps {
   open: boolean;
@@ -22,13 +23,37 @@ export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDia
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [clienteId, setClienteId] = useState("");
-  const [status, setStatus] = useState("em_analise");
+  const [status, setStatus] = useState("");
   const [isDragging, setIsDragging] = useState(false);
 
   const { data: clientes } = useQuery<Cliente[]>({
     queryKey: ["/api/clientes"],
     enabled: open,
   });
+
+  const { data: statusList, isLoading: isLoadingStatus, error: statusError } = useQuery<StatusDocumento[]>({
+    queryKey: ["/api/status-documentos"],
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (statusList && statusList.length > 0 && !status) {
+      const firstActiveStatus = statusList.find(s => s.ativo);
+      if (firstActiveStatus) {
+        setStatus(firstActiveStatus.id);
+      }
+    }
+  }, [statusList, status]);
+
+  useEffect(() => {
+    if (statusError) {
+      toast({
+        title: "Erro ao carregar status",
+        description: "Não foi possível carregar a lista de status",
+        variant: "destructive",
+      });
+    }
+  }, [statusError, toast]);
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -66,7 +91,8 @@ export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDia
     setNome("");
     setDescricao("");
     setClienteId("");
-    setStatus("em_analise");
+    const firstActiveStatus = statusList?.find(s => s.ativo);
+    setStatus(firstActiveStatus?.id || "");
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -104,10 +130,15 @@ export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDia
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!file || !nome || !clienteId) {
+    const activeStatusIds = statusList?.filter(s => s.ativo).map(s => s.id) || [];
+    const isStatusValid = activeStatusIds.includes(status);
+
+    if (!file || !nome || !clienteId || !status || !isStatusValid) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios",
+        description: !isStatusValid && status 
+          ? "O status selecionado não está mais ativo. Selecione outro status."
+          : "Preencha todos os campos obrigatórios",
         variant: "destructive",
       });
       return;
@@ -218,18 +249,27 @@ export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDia
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger id="status" data-testid="select-status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="em_analise">Em Análise</SelectItem>
-                <SelectItem value="em_uso">Em Uso</SelectItem>
-                <SelectItem value="devolvido">Devolvido ao Cliente</SelectItem>
-                <SelectItem value="arquivado">Arquivado</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="status">Status *</Label>
+            {isLoadingStatus ? (
+              <Skeleton className="h-10 w-full" />
+            ) : statusList && statusList.filter(s => s.ativo).length > 0 ? (
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger id="status" data-testid="select-status">
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusList.filter(s => s.ativo).map((statusItem) => (
+                    <SelectItem key={statusItem.id} value={statusItem.id}>
+                      {statusItem.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                Nenhum status ativo encontrado. Crie um status na página de Usuários antes de fazer upload.
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -259,7 +299,7 @@ export function DocumentoUploadDialog({ open, onOpenChange }: DocumentoUploadDia
             </Button>
             <Button
               type="submit"
-              disabled={uploadMutation.isPending || !file}
+              disabled={uploadMutation.isPending || !file || isLoadingStatus}
               data-testid="button-submit-upload"
             >
               {uploadMutation.isPending ? "Enviando..." : "Fazer Upload"}

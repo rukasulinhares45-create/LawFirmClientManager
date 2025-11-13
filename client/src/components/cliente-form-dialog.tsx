@@ -90,11 +90,9 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
 
     setIsLoadingCep(true);
     try {
-      const response = await fetch(`/api/viacep/${cleaned}`);
-      if (!response.ok) throw new Error("CEP não encontrado");
+      const response = await fetch(`/api/cep/${cleaned}`);
       
-      const data = await response.json();
-      if (data.erro) {
+      if (response.status === 404) {
         toast({
           title: "CEP não encontrado",
           description: "Verifique o CEP digitado e tente novamente",
@@ -102,6 +100,13 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
         });
         return;
       }
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "CEP inválido");
+      }
+      
+      const data = await response.json();
 
       form.setValue("endereco", data.logradouro || "");
       form.setValue("bairro", data.bairro || "");
@@ -115,7 +120,7 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
     } catch (error) {
       toast({
         title: "Erro ao buscar CEP",
-        description: "Não foi possível buscar o endereço",
+        description: error instanceof Error ? error.message : "Não foi possível buscar o endereço",
         variant: "destructive",
       });
     } finally {
