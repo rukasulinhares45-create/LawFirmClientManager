@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -28,17 +28,47 @@ export default function DocumentosPage() {
   const [newStatusId, setNewStatusId] = useState<string>("");
   const { toast } = useToast();
 
-  const { data: documentos, isLoading } = useQuery<Documento[]>({
+  const { data: documentos, isLoading, error: errorDocumentos } = useQuery<Documento[]>({
     queryKey: ["/api/documentos"],
   });
 
-  const { data: statusList } = useQuery<StatusDocumento[]>({
+  const { data: statusList, error: errorStatus } = useQuery<StatusDocumento[]>({
     queryKey: ["/api/status-documentos"],
   });
 
-  const { data: clientes } = useQuery<Cliente[]>({
+  const { data: clientes, error: errorClientes } = useQuery<Cliente[]>({
     queryKey: ["/api/clientes"],
   });
+
+  useEffect(() => {
+    if (errorDocumentos) {
+      toast({
+        title: "Erro ao carregar documentos",
+        description: "Não foi possível carregar a lista de documentos. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  }, [errorDocumentos, toast]);
+
+  useEffect(() => {
+    if (errorStatus) {
+      toast({
+        title: "Erro ao carregar status",
+        description: "Não foi possível carregar os status de documentos.",
+        variant: "destructive",
+      });
+    }
+  }, [errorStatus, toast]);
+
+  useEffect(() => {
+    if (errorClientes) {
+      toast({
+        title: "Erro ao carregar clientes",
+        description: "Não foi possível carregar a lista de clientes.",
+        variant: "destructive",
+      });
+    }
+  }, [errorClientes, toast]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
