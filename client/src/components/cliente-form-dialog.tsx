@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { CPFCNPJMask, PhoneMask, CEPMask, stripNonDigits } from "@/components/masked-input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState, useEffect } from "react";
 
 const clienteFormSchema = insertClienteSchema;
 
@@ -28,6 +30,8 @@ interface ClienteFormDialogProps {
 export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDialogProps) {
   const { toast } = useToast();
   const isEditing = !!cliente;
+  const [naturalidadeEstado, setNaturalidadeEstado] = useState<string>("");
+  const [isLoadingCep, setIsLoadingCep] = useState(false);
 
   const form = useForm<ClienteFormData>({
     resolver: zodResolver(clienteFormSchema),
@@ -69,6 +73,55 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
       observacoes: "",
     },
   });
+
+  const { data: estados } = useQuery<{ sigla: string; nome: string }[]>({
+    queryKey: ["/api/ibge/estados"],
+    enabled: open,
+  });
+
+  const { data: municipios } = useQuery<{ id: number; nome: string }[]>({
+    queryKey: ["/api/ibge/municipios", naturalidadeEstado],
+    enabled: !!naturalidadeEstado,
+  });
+
+  const buscarEnderecoPorCEP = async (cep: string) => {
+    const cleaned = stripNonDigits(cep);
+    if (cleaned.length !== 8) return;
+
+    setIsLoadingCep(true);
+    try {
+      const response = await fetch(`/api/viacep/${cleaned}`);
+      if (!response.ok) throw new Error("CEP não encontrado");
+      
+      const data = await response.json();
+      if (data.erro) {
+        toast({
+          title: "CEP não encontrado",
+          description: "Verifique o CEP digitado e tente novamente",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      form.setValue("endereco", data.logradouro || "");
+      form.setValue("bairro", data.bairro || "");
+      form.setValue("cidade", data.localidade || "");
+      form.setValue("estado", data.uf || "");
+      
+      toast({
+        title: "Endereço encontrado",
+        description: "Os campos foram preenchidos automaticamente",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao buscar CEP",
+        description: "Não foi possível buscar o endereço",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingCep(false);
+    }
+  };
 
   const createMutation = useMutation({
     mutationFn: async (data: ClienteFormData) => {
@@ -262,15 +315,44 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
                         control={form.control}
                         name="localNascimento"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Local de Nascimento</FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
+                          <FormItem className="md:col-span-2">
+                            <FormLabel>Local de Nascimento (Naturalidade)</FormLabel>
+                            <div className="grid gap-2 md:grid-cols-2">
+                              <Select
+                                value={naturalidadeEstado}
+                                onValueChange={(value) => {
+                                  setNaturalidadeEstado(value);
+                                  field.onChange("");
+                                }}
+                              >
+                                <SelectTrigger data-testid="select-estado-naturalidade">
+                                  <SelectValue placeholder="Selecione o estado" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {estados?.map((estado) => (
+                                    <SelectItem key={estado.sigla} value={estado.sigla}>
+                                      {estado.nome}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Select
                                 value={field.value || ""}
-                                data-testid="input-local-nascimento"
-                              />
-                            </FormControl>
+                                onValueChange={field.onChange}
+                                disabled={!naturalidadeEstado}
+                              >
+                                <SelectTrigger data-testid="select-municipio-naturalidade">
+                                  <SelectValue placeholder={naturalidadeEstado ? "Selecione o município" : "Primeiro selecione o estado"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {municipios?.map((municipio) => (
+                                    <SelectItem key={municipio.id} value={municipio.nome}>
+                                      {municipio.nome}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -345,14 +427,30 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>CEP</FormLabel>
-                        <FormControl>
-                          <CEPMask
-                            {...field}
-                            value={field.value || ""}
-                            placeholder="00000-000"
-                            data-testid="input-cep"
-                          />
-                        </FormControl>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <CEPMask
+                              {...field}
+                              value={field.value || ""}
+                              placeholder="00000-000"
+                              data-testid="input-cep"
+                              onBlur={() => {
+                                if (field.value) {
+                                  buscarEnderecoPorCEP(field.value);
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => buscarEnderecoPorCEP(field.value || "")}
+                            disabled={isLoadingCep || !field.value}
+                            data-testid="button-buscar-cep"
+                          >
+                            {isLoadingCep ? "Buscando..." : "Buscar"}
+                          </Button>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}

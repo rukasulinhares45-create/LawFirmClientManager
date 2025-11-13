@@ -317,7 +317,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post("/api/documentos/upload", requireAuth, upload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/documentos/upload", requireAuth, upload.single('file'), async (req: Request & { file?: Express.Multer.File }, res: Response, next: NextFunction) => {
     try {
       if (!req.file) {
         return res.status(400).send("Nenhum arquivo enviado");
@@ -328,11 +328,11 @@ export function registerRoutes(app: Express): Server {
         nome: z.string().min(1),
         descricao: z.string().optional(),
         clienteId: z.string().min(1),
-        status: z.enum(['em_analise', 'em_uso', 'devolvido', 'arquivado']).default('em_analise'),
+        statusId: z.string().nullable().optional(),
       });
 
       const validatedData = uploadSchema.parse(req.body);
-      const { nome, descricao, clienteId, status } = validatedData;
+      const { nome, descricao, clienteId, statusId } = validatedData;
 
       const documento = await storage.createDocumento({
         nome,
@@ -342,15 +342,16 @@ export function registerRoutes(app: Express): Server {
         tipoArquivo: req.file!.mimetype.split('/')[1],
         tamanhoBytes: req.file!.size,
         caminhoArquivo: req.file!.path,
-        status,
+        statusId: statusId || null,
       }, req.user!.id);
 
       await createAuditLog(req, "upload_documento", "documento", documento.id, `Documento enviado: ${documento.nome}`);
       res.status(201).json(documento);
     } catch (error) {
       // Delete uploaded file on error
-      if (req.file) {
-        fs.unlinkSync(req.file.path);
+      const fileReq = req as Request & { file?: Express.Multer.File };
+      if (fileReq.file) {
+        fs.unlinkSync(fileReq.file.path);
       }
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
@@ -365,7 +366,7 @@ export function registerRoutes(app: Express): Server {
       const updateSchema = z.object({
         nome: z.string().optional(),
         descricao: z.string().nullable().optional(),
-        status: z.enum(['em_analise', 'em_uso', 'devolvido', 'arquivado']).optional(),
+        statusId: z.string().nullable().optional(),
       });
 
       const validatedData = updateSchema.parse(req.body);
@@ -543,6 +544,54 @@ export function registerRoutes(app: Express): Server {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
       }
+      next(error);
+    }
+  });
+
+  // Status de Documentos routes
+  app.get("/api/status-documentos", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const statusList = await storage.getAllStatusDocumentos();
+      res.json(statusList);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/status-documentos", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const statusData = req.body;
+      const status = await storage.createStatusDocumento(statusData);
+      await createAuditLog(req, "criar_status_documento", "status_documento", status.id, `Status criado: ${status.nome}`);
+      res.status(201).json(status);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      next(error);
+    }
+  });
+
+  app.patch("/api/status-documentos/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const statusData = req.body;
+      const status = await storage.updateStatusDocumento(req.params.id, statusData);
+      await createAuditLog(req, "editar_status_documento", "status_documento", status.id, `Status editado: ${status.nome}`);
+      res.json(status);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      next(error);
+    }
+  });
+
+  app.delete("/api/status-documentos/:id", requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await storage.deleteStatusDocumento(req.params.id);
+      await createAuditLog(req, "deletar_status_documento", "status_documento", req.params.id, `Status deletado`);
+      res.sendStatus(204);
+    } catch (error) {
       next(error);
     }
   });

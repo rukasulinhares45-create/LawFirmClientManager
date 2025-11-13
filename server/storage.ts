@@ -5,6 +5,7 @@ import {
   documentos,
   documentosJuridicos,
   logsAuditoria,
+  statusDocumentos,
   type User,
   type InsertUser,
   type Cliente,
@@ -15,6 +16,8 @@ import {
   type InsertDocumentoJuridico,
   type LogAuditoria,
   type InsertLogAuditoria,
+  type StatusDocumento,
+  type InsertStatusDocumento,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, or, like, sql } from "drizzle-orm";
@@ -49,6 +52,13 @@ export interface IStorage {
   createDocumento(documento: InsertDocumento, userId: string): Promise<Documento>;
   updateDocumento(id: string, documento: Partial<InsertDocumento>): Promise<Documento>;
   deleteDocumento(id: string): Promise<void>;
+
+  // Status Documento methods
+  getAllStatusDocumentos(): Promise<StatusDocumento[]>;
+  getStatusDocumentoById(id: string): Promise<StatusDocumento | undefined>;
+  createStatusDocumento(status: InsertStatusDocumento): Promise<StatusDocumento>;
+  updateStatusDocumento(id: string, status: Partial<InsertStatusDocumento>): Promise<StatusDocumento>;
+  deleteStatusDocumento(id: string): Promise<void>;
 
   // Documento Juridico methods
   getAllDocumentosJuridicos(): Promise<DocumentoJuridico[]>;
@@ -213,6 +223,37 @@ export class DatabaseStorage implements IStorage {
     await db.delete(documentos).where(eq(documentos.id, id));
   }
 
+  // Status Documento methods
+  async getAllStatusDocumentos(): Promise<StatusDocumento[]> {
+    return await db.select().from(statusDocumentos).where(eq(statusDocumentos.ativo, true)).orderBy(statusDocumentos.ordem);
+  }
+
+  async getStatusDocumentoById(id: string): Promise<StatusDocumento | undefined> {
+    const [status] = await db.select().from(statusDocumentos).where(eq(statusDocumentos.id, id));
+    return status || undefined;
+  }
+
+  async createStatusDocumento(insertStatus: InsertStatusDocumento): Promise<StatusDocumento> {
+    const [status] = await db
+      .insert(statusDocumentos)
+      .values(insertStatus)
+      .returning();
+    return status;
+  }
+
+  async updateStatusDocumento(id: string, insertStatus: Partial<InsertStatusDocumento>): Promise<StatusDocumento> {
+    const [status] = await db
+      .update(statusDocumentos)
+      .set(insertStatus)
+      .where(eq(statusDocumentos.id, id))
+      .returning();
+    return status;
+  }
+
+  async deleteStatusDocumento(id: string): Promise<void> {
+    await db.delete(statusDocumentos).where(eq(statusDocumentos.id, id));
+  }
+
   // Documento Juridico methods
   async getAllDocumentosJuridicos(): Promise<DocumentoJuridico[]> {
     return await db.select().from(documentosJuridicos).orderBy(desc(documentosJuridicos.criadoEm));
@@ -269,20 +310,38 @@ export class DatabaseStorage implements IStorage {
       .select({ count: sql<number>`count(*)::int` })
       .from(clientes);
 
+    const [statusEmUso] = await db
+      .select()
+      .from(statusDocumentos)
+      .where(eq(statusDocumentos.nome, 'Em Uso'))
+      .limit(1);
+
+    const [statusEmAnalise] = await db
+      .select()
+      .from(statusDocumentos)
+      .where(eq(statusDocumentos.nome, 'Em Análise'))
+      .limit(1);
+
+    const [statusDevolvido] = await db
+      .select()
+      .from(statusDocumentos)
+      .where(eq(statusDocumentos.nome, 'Devolvido'))
+      .limit(1);
+
     const [documentosAtivosResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(documentos)
-      .where(eq(documentos.status, 'em_uso'));
+      .where(statusEmUso ? eq(documentos.statusId, statusEmUso.id) : sql`false`);
 
     const [documentosPendentesResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(documentos)
-      .where(eq(documentos.status, 'em_analise'));
+      .where(statusEmAnalise ? eq(documentos.statusId, statusEmAnalise.id) : sql`false`);
 
     const [documentosDesolvidosResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(documentos)
-      .where(eq(documentos.status, 'devolvido'));
+      .where(statusDevolvido ? eq(documentos.statusId, statusDevolvido.id) : sql`false`);
 
     return {
       totalClientes: totalClientesResult?.count || 0,

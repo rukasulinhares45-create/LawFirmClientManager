@@ -58,6 +58,17 @@ export const clientes = pgTable("clientes", {
   atualizadoEm: timestamp("atualizado_em").notNull().default(sql`now()`),
 });
 
+// Status personalizáveis para documentos
+export const statusDocumentos = pgTable("status_documentos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nome: text("nome").notNull().unique(),
+  descricao: text("descricao"),
+  cor: text("cor").notNull().default("#6b7280"), // Cor em hex para exibição
+  ativo: boolean("ativo").notNull().default(true),
+  ordem: integer("ordem").notNull().default(0), // Para ordenação customizada
+  criadoEm: timestamp("criado_em").notNull().default(sql`now()`),
+});
+
 // Documentos vinculados a clientes
 export const documentos = pgTable("documentos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -73,7 +84,7 @@ export const documentos = pgTable("documentos", {
   caminhoArquivo: text("caminho_arquivo").notNull(),
   
   // Status
-  status: text("status").notNull().default("em_analise"), // "em_analise" | "em_uso" | "devolvido" | "arquivado"
+  statusId: varchar("status_id").references(() => statusDocumentos.id),
   statusAtualizadoEm: timestamp("status_atualizado_em").notNull().default(sql`now()`),
   
   // Metadados
@@ -127,6 +138,10 @@ export const clientesRelations = relations(clientes, ({ one, many }) => ({
   documentosJuridicos: many(documentosJuridicos),
 }));
 
+export const statusDocumentosRelations = relations(statusDocumentos, ({ many }) => ({
+  documentos: many(documentos),
+}));
+
 export const documentosRelations = relations(documentos, ({ one }) => ({
   cliente: one(clientes, {
     fields: [documentos.clienteId],
@@ -135,6 +150,10 @@ export const documentosRelations = relations(documentos, ({ one }) => ({
   uploadPor: one(users, {
     fields: [documentos.uploadPorId],
     references: [users.id],
+  }),
+  status: one(statusDocumentos, {
+    fields: [documentos.statusId],
+    references: [statusDocumentos.id],
   }),
 }));
 
@@ -165,6 +184,70 @@ export const insertUserSchema = createInsertSchema(users).pick({
   role: true,
 });
 
+const stripDigits = (value: string | null | undefined): string => {
+  if (!value) return "";
+  return value.replace(/\D/g, "");
+};
+
+const validateCPF = (cpf: string): boolean => {
+  const cleaned = stripDigits(cpf);
+  if (cleaned.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cleaned)) return false;
+  
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cleaned.charAt(i)) * (10 - i);
+  }
+  let digit = 11 - (sum % 11);
+  if (digit > 9) digit = 0;
+  if (digit !== parseInt(cleaned.charAt(9))) return false;
+  
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cleaned.charAt(i)) * (11 - i);
+  }
+  digit = 11 - (sum % 11);
+  if (digit > 9) digit = 0;
+  if (digit !== parseInt(cleaned.charAt(10))) return false;
+  
+  return true;
+};
+
+const validateCNPJ = (cnpj: string): boolean => {
+  const cleaned = stripDigits(cnpj);
+  if (cleaned.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(cleaned)) return false;
+  
+  let length = cleaned.length - 2;
+  let numbers = cleaned.substring(0, length);
+  const digits = cleaned.substring(length);
+  let sum = 0;
+  let pos = length - 7;
+  
+  for (let i = length; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(length - i)) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  
+  let result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (result !== parseInt(digits.charAt(0))) return false;
+  
+  length = length + 1;
+  numbers = cleaned.substring(0, length);
+  sum = 0;
+  pos = length - 7;
+  
+  for (let i = length; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(length - i)) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  
+  result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (result !== parseInt(digits.charAt(1))) return false;
+  
+  return true;
+};
+
 const clienteSchema = createInsertSchema(clientes)
   .omit({
     id: true,
@@ -178,15 +261,35 @@ const clienteSchema = createInsertSchema(clientes)
     celular: z.string().min(1, "Celular é obrigatório"),
   });
 
-export const insertClienteSchema = clienteSchema.refine(
-  (data) => data.tipo !== "pf" || !!data.dataNascimento,
-  {
-    message: "Data de nascimento é obrigatória para pessoa física",
-    path: ["dataNascimento"],
-  }
-);
+export const insertClienteSchema = clienteSchema
+  .refine(
+    (data) => data.tipo !== "pf" || !!data.dataNascimento,
+    {
+      message: "Data de nascimento é obrigatória para pessoa física",
+      path: ["dataNascimento"],
+    }
+  )
+  .refine(
+    (data) => {
+      const cleaned = stripDigits(data.cpfCnpj);
+      if (data.tipo === "pf") {
+        return cleaned.length === 11 && validateCPF(data.cpfCnpj);
+      } else {
+        return cleaned.length === 14 && validateCNPJ(data.cpfCnpj);
+      }
+    },
+    {
+      message: "CPF/CNPJ inválido",
+      path: ["cpfCnpj"],
+    }
+  );
 
 export const updateClienteSchema = clienteSchema.partial();
+
+export const insertStatusDocumentoSchema = createInsertSchema(statusDocumentos).omit({
+  id: true,
+  criadoEm: true,
+});
 
 export const insertDocumentoSchema = createInsertSchema(documentos).omit({
   id: true,
@@ -213,6 +316,9 @@ export type User = typeof users.$inferSelect;
 
 export type InsertCliente = z.infer<typeof insertClienteSchema>;
 export type Cliente = typeof clientes.$inferSelect;
+
+export type InsertStatusDocumento = z.infer<typeof insertStatusDocumentoSchema>;
+export type StatusDocumento = typeof statusDocumentos.$inferSelect;
 
 export type InsertDocumento = z.infer<typeof insertDocumentoSchema>;
 export type Documento = typeof documentos.$inferSelect;
