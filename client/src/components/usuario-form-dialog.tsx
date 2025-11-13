@@ -10,6 +10,7 @@ import { insertUserSchema, User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useEffect } from "react";
 
 const userFormSchema = insertUserSchema.extend({
   nome: z.string().min(1, "Nome é obrigatório"),
@@ -102,6 +103,20 @@ export function UsuarioFormDialog({ open, onOpenChange, usuario }: UsuarioFormDi
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+
+  useEffect(() => {
+    if (!open) {
+      form.reset();
+    } else if (usuario) {
+      form.reset({
+        username: usuario.username,
+        nome: usuario.nome,
+        email: usuario.email,
+        role: usuario.role as "admin" | "user",
+        password: "",
+      });
+    }
+  }, [open, usuario, form]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

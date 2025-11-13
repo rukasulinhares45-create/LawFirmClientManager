@@ -3,12 +3,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Plus, Shield, UserCog } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { User } from "@shared/schema";
 import { UsuarioFormDialog } from "@/components/usuario-form-dialog";
+import { StatusDocumentosManager } from "@/components/status-documentos-manager";
 import { Switch } from "@/components/ui/switch";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -161,6 +162,15 @@ export default function UsuariosPage() {
         }}
         usuario={selectedUser || undefined}
       />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Gerenciamento de Status de Documentos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StatusDocumentosManager />
+        </CardContent>
+      </Card>
     </div>
   );
 }

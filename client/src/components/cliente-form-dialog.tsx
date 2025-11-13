@@ -188,6 +188,59 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
   const isPending = createMutation.isPending || updateMutation.isPending;
   const tipo = form.watch("tipo");
 
+  useEffect(() => {
+    if (!open) {
+      form.reset();
+      setNaturalidadeEstado("");
+    } else if (cliente) {
+      const estadoFromNaturalidade = cliente.localNascimento && cliente.localNascimento.includes(" - ")
+        ? cliente.localNascimento.split(" - ")[1]
+        : "";
+      
+      setNaturalidadeEstado(estadoFromNaturalidade);
+      
+      form.reset({
+        ...cliente,
+        celular: cliente.celular || "",
+        rgInscricaoEstadual: cliente.rgInscricaoEstadual || "",
+        dataNascimento: cliente.dataNascimento || "",
+        localNascimento: cliente.localNascimento || "",
+        cep: cliente.cep || "",
+        endereco: cliente.endereco || "",
+        numero: cliente.numero || "",
+        complemento: cliente.complemento || "",
+        bairro: cliente.bairro || "",
+        cidade: cliente.cidade || "",
+        estado: cliente.estado || "",
+        telefone: cliente.telefone || "",
+        email: cliente.email || "",
+        ocupacao: cliente.ocupacao || "",
+        observacoes: cliente.observacoes || "",
+      });
+    } else if (open) {
+      form.reset({
+        tipo: "pf",
+        nome: "",
+        cpfCnpj: "",
+        rgInscricaoEstadual: "",
+        dataNascimento: "",
+        localNascimento: "",
+        cep: "",
+        endereco: "",
+        numero: "",
+        complemento: "",
+        bairro: "",
+        cidade: "",
+        estado: "",
+        telefone: "",
+        celular: "",
+        email: "",
+        ocupacao: "",
+        observacoes: "",
+      });
+    }
+  }, [open, cliente, form]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -337,8 +390,8 @@ export function ClienteFormDialog({ open, onOpenChange, cliente }: ClienteFormDi
                                 </SelectContent>
                               </Select>
                               <Select
-                                value={field.value || ""}
-                                onValueChange={field.onChange}
+                                value={field.value ? field.value.split(" - ")[0] : ""}
+                                onValueChange={(value) => field.onChange(`${value} - ${naturalidadeEstado}`)}
                                 disabled={!naturalidadeEstado}
                               >
                                 <SelectTrigger data-testid="select-municipio-naturalidade">
