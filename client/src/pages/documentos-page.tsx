@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Documento, StatusDocumento } from "@shared/schema";
+import { Documento, StatusDocumento, Cliente } from "@shared/schema";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -34,6 +34,10 @@ export default function DocumentosPage() {
 
   const { data: statusList } = useQuery<StatusDocumento[]>({
     queryKey: ["/api/status-documentos"],
+  });
+
+  const { data: clientes } = useQuery<Cliente[]>({
+    queryKey: ["/api/clientes"],
   });
 
   const deleteMutation = useMutation({
@@ -95,6 +99,11 @@ export default function DocumentosPage() {
     if (!statusId) return "Sem Status";
     const status = statusList?.find(s => s.id === statusId);
     return status?.nome || "Status Desconhecido";
+  };
+
+  const getClienteNome = (clienteId: string) => {
+    const cliente = clientes?.find(c => c.id === clienteId);
+    return cliente?.nome || "Cliente Desconhecido";
   };
 
   const getFileIcon = (tipo: string) => {
@@ -165,6 +174,9 @@ export default function DocumentosPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="font-medium truncate">{doc.nome}</h3>
+                            <p className="text-xs text-muted-foreground">
+                              {getClienteNome(doc.clienteId)}
+                            </p>
                             <p className="text-xs text-muted-foreground uppercase">
                               {doc.tipoArquivo}
                             </p>
