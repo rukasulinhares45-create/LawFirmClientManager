@@ -74,9 +74,6 @@ export interface IStorage {
   // Dashboard methods
   getDashboardStats(): Promise<{
     totalClientes: number;
-    documentosAtivos: number;
-    documentosPendentes: number;
-    documentosDevolvidos: number;
   }>;
   getRecentActivities(limit?: number): Promise<LogAuditoria[]>;
 
@@ -310,44 +307,8 @@ export class DatabaseStorage implements IStorage {
       .select({ count: sql<number>`count(*)::int` })
       .from(clientes);
 
-    const [statusEmUso] = await db
-      .select()
-      .from(statusDocumentos)
-      .where(eq(statusDocumentos.nome, 'Em Uso'))
-      .limit(1);
-
-    const [statusEmAnalise] = await db
-      .select()
-      .from(statusDocumentos)
-      .where(eq(statusDocumentos.nome, 'Em Análise'))
-      .limit(1);
-
-    const [statusDevolvido] = await db
-      .select()
-      .from(statusDocumentos)
-      .where(eq(statusDocumentos.nome, 'Devolvido'))
-      .limit(1);
-
-    const [documentosAtivosResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(documentos)
-      .where(statusEmUso ? eq(documentos.statusId, statusEmUso.id) : sql`false`);
-
-    const [documentosPendentesResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(documentos)
-      .where(statusEmAnalise ? eq(documentos.statusId, statusEmAnalise.id) : sql`false`);
-
-    const [documentosDesolvidosResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(documentos)
-      .where(statusDevolvido ? eq(documentos.statusId, statusDevolvido.id) : sql`false`);
-
     return {
       totalClientes: totalClientesResult?.count || 0,
-      documentosAtivos: documentosAtivosResult?.count || 0,
-      documentosPendentes: documentosPendentesResult?.count || 0,
-      documentosDevolvidos: documentosDesolvidosResult?.count || 0,
     };
   }
 
